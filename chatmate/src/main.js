@@ -1,4 +1,12 @@
-import { createApp } from 'vue'
-import App from './App.vue'
+import { createApp } from 'vue';
+import router from './router';
+import store from './store';
+import ComingSoon_View from "@/Views/ComingSoon_View.vue";
 
-createApp(App).mount('#app')
+
+const app = createApp(ComingSoon_View);
+
+app.use(router);
+app.use(store);
+
+app.mount('#app');
