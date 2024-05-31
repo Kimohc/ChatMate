@@ -122,4 +122,6 @@ main h3{
 a{
     color: inherit;
 }
-
+button{
+    margin: 15px;
+}

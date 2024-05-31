@@ -23,11 +23,11 @@
 <script>
 import '/src/app.css'
 import Navbar from '/src/components/Nav.vue'
+
 export default {
   name: 'Home_view',
   components: {
     'nav-bar': Navbar,
-
   },
   data() {
     return {
