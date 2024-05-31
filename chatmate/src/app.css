@@ -30,6 +30,40 @@ body{
 .container h1, h2, h3, h4{
     margin: 15px;
 }
+.container input{
+    width: 100%;
+    max-width: 400px;
+    height: 45px;
+    padding: 22px;
+    font-size: 20px;
+    border-radius: 12px;
+    border: 1.5px solid lightgrey;
+    outline: none;
+    transition: all 0.3s cubic-bezier(0.19, 1, 0.22, 1);
+    box-shadow: 0px 0px 20px -18px;
+    margin: 10px;
+}
+input:hover {
+    border: 2px solid lightgrey;
+    box-shadow: 0px 0px 20px -17px;
+}
+
+input:active {
+    transform: scale(0.95);
+}
+
+input:focus {
+    border: 2px solid grey;
+}
+.folder{
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    text-align: center;
+}
+.folder svg{
+    scale: 1.5;
+}
 .buttons{
     width: 30%;
     display: flex;
@@ -39,25 +73,53 @@ body{
 }
 button{
     padding: 10px 45px;
+    border: none;
     border-radius: 5px;
     background-color: var(--brand1);
     font-weight: bold;
     cursor: pointer;
     transition: 0.1s;
+    font-size: 17px;
 }
 button:hover{
     background-color: var(--brand2);
     transform: scale(1.1);
     color: white;
 }
-a{
+.buttons a{
     list-style: none;
     text-decoration: none;
     color: inherit;
     font-size: 50px;
     transition: 0.1s;
 }
-a:hover{
+.buttons a:hover{
     color: var(--brand2);
     transform: scale(1.1);
 }
+main{
+    font-size: 30px;
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-direction: column;
+}
+main h1,h2,h3,h4,h5{
+    letter-spacing:8px;
+
+    margin: 15px;
+}
+main h3{
+    white-space:nowrap;
+    letter-spacing:2px;
+    background-color: #AF8260;
+    border-radius:40px;
+    padding:0.4rem 1rem;
+    text-transform:uppercase;
+    font-weight:400 !important;
+}
+a{
+    color: inherit;
+}
+
