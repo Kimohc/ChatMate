@@ -1,12 +1,12 @@
 <template>
   <div id="app">
   <nav-bar></nav-bar>
-  <main>
+  <main class="home-container">
     <h3>Welcome to Jakubski's ChatMate</h3>
     <h1>Chatting Done Right</h1>
     <h5>We provide chatting services with fake profiles to ease your loneliness</h5>
     <div class="buttons">
-    <button>Sign in!</button>
+    <button @click="$router.push('/signin')">Sign in!</button>
     <button>Contact us!</button>
     </div>
 

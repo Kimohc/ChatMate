@@ -1,15 +1,22 @@
 import models
+import ai
 from db import engine, SessionLocal
 from sqlalchemy.orm import Session
 from starlette.middleware.cors import CORSMiddleware
 from datetime import datetime, timedelta, timezone
 from typing import Annotated, Union
-from fastapi import Depends, FastAPI, HTTPException, status
+from fastapi import Depends, FastAPI, HTTPException, status, File, UploadFile
+from fastapi.responses import FileResponse
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from pydantic import BaseModel
 import uuid
+import base64
+import io
+import random
+import asyncio
+
 
 app = FastAPI()
 
@@ -36,19 +43,20 @@ class BotsBase(BaseModel):
     bot_naam: str
     bot_foto: str
     bot_beschrijving: str
-    bot_geboortedatum: str
-    bot_geslacht: int
+    bot_oud: str
+    bot_geslacht: str
+    bot_land: str
 
 
 class BerichtenBase(BaseModel):
     gesprek_id: int
-    verstuurder_id: int
+    verstuurder_id: str
     bericht: str
 
 
 class GesprekkenBase(BaseModel):
-    gebruiker_id: int
-    bot_id: int
+    gebruiker_id: str
+    bot_id: str
 
 
 def get_db():
@@ -130,6 +138,11 @@ async def create_user(gebruiker: GebruikerBase, db: db_dependency):
     return db_user
 
 
+@app.get('/gebruiker/{id}', status_code=status.HTTP_200_OK)
+async def get_user_by_id(gebruiker_id: str, db: db_dependency):
+    return db.query(models.Gebruiker).where(models.Gebruiker.gebruiker_id == gebruiker_id).first()
+
+
 @app.post("/gebruiker/login")
 async def login(gebruiker: GebruikerBase):
     db = SessionLocal()
@@ -150,6 +163,8 @@ async def login(gebruiker: GebruikerBase):
         "user_id": gebruiker.gebruiker_id,
         "username": gebruiker.gebruikersnaam,
         "password": gebruiker.wachtwoord,
+        "beschrijving": gebruiker.beschrijving,
+        "e_mail": gebruiker.e_mail
     }
 
 
@@ -166,15 +181,47 @@ async def get_new_acces_token(gebruikersnaam: str):
 
 
 @app.delete('/gebruiker/{id}', status_code=status.HTTP_200_OK)
-async def delete_user(gebruiker_id: str, db: db_dependency, current_user: UserInDB = Depends(get_current_user)):
-    db.query(models.Gebruiker).where(models.Gebruiker.gebruiker_id == gebruiker_id).delete()
+async def delete_user(id: str, db: db_dependency):
+    db.query(models.Gebruiker).where(models.Gebruiker.gebruiker_id == id).delete()
     db.commit()
     return True
 
 
+@app.post('/gebruiker/image/{id}', status_code=status.HTTP_200_OK)
+async def add_foto(id: str, db: db_dependency, file: UploadFile = File(...)):
+    user_to_upload = db.query(models.Gebruiker).filter(models.Gebruiker.gebruiker_id == id).first()
+
+    if not user_to_upload:
+        raise HTTPException(status_code=404, detail="Gebruiker not found")
+
+    # Save the file
+    file.filename = f"{uuid.uuid4()}.png"
+    contents = await file.read()
+    file_path = f"images/{file.filename}"
+
+    with open(file_path, "wb") as f:
+        f.write(contents)
+
+    # Update the user object
+    user_to_upload.foto = file.filename
+    db.add(user_to_upload)
+    db.commit()
+    db.refresh(user_to_upload)
+
+    return {"filename": file.filename, "file_path": file_path}
+
+
+@app.get('/gebruiker/{id}/image', status_code=status.HTTP_200_OK)
+async def get_image_user(id: str, db: db_dependency):
+    user = db.query(models.Gebruiker).where(models.Gebruiker.gebruiker_id == id).first()
+    foto = user.foto
+    path = f'images/{foto}'
+    return FileResponse(path)
+
+
 @app.patch('/gebruiker/{id}', status_code=status.HTTP_200_OK)
 async def update_user(id: str, gebruiker: GebruikerBase, db: db_dependency,
-                      current_user: UserInDB = Depends(get_current_user)):
+                      ):
     db_gebruiker = db.query(models.Gebruiker).filter(models.Gebruiker.gebruiker_id == id).first()
 
     if db_gebruiker is None:
@@ -183,7 +230,7 @@ async def update_user(id: str, gebruiker: GebruikerBase, db: db_dependency,
     update_data = gebruiker.dict()
     for key, value in update_data.items():
         setattr(db_gebruiker, key, value)
-
+    db_gebruiker.wachtwoord = pwd_context.hash(db_gebruiker.wachtwoord)
     db.add(db_gebruiker)
     db.commit()
     db.refresh(db_gebruiker)
@@ -212,6 +259,24 @@ async def delete_gesprek(gesprek_id: int, db: db_dependency):
     return True
 
 
+@app.get('/bots', status_code=status.HTTP_200_OK)
+async def get_bots(db: db_dependency):
+    return db.query(models.Bots).all()
+
+
+@app.get('/randombot', status_code=status.HTTP_200_OK)
+async def get_random_bot(db: db_dependency):
+    alle_bots = await get_bots(db)
+    length = len(alle_bots)
+    random_bot_index = random.randint(0, length)
+    return alle_bots[random_bot_index]
+
+
+@app.get('/bot/{bot_id}', status_code=status.HTTP_200_OK)
+async def get_bot_by_id(bot_id: str, db: db_dependency):
+    return db.query(models.Bots).where(models.Bots.bot_id == bot_id).first()
+
+
 @app.get('/gesprek/{gebruiker_id}/{bot_id}', status_code=status.HTTP_200_OK)
 async def get_gesprek_gebruiker_bot(gebruiker_id: str, bot_id: str, db: db_dependency):
     return db.query(models.Gesprekken).where(models.Gesprekken.gebruiker_id == gebruiker_id) and db.query(
@@ -229,12 +294,19 @@ async def make_bericht(berichten: BerichtenBase, db: db_dependency):
     db.add(db_bericht)
     db.commit()
     db.refresh(db_bericht)
-    return db_bericht
+    ai_response = ai.send_request_to_ai(db_bericht.bericht)
+
+    return {
+        "user_bericht": db_bericht,
+        "AI_bericht": ai_response
+    }
 
 
 @app.delete('/bericht/{bericht_id}', status_code=status.HTTP_200_OK)
 async def delete_bericht(bericht_id: int, db: db_dependency):
-    return db.query(models.Berichten).where(models.Berichten.bericht_id == bericht_id).delete()
+    db.query(models.Berichten).where(models.Berichten.bericht_id == bericht_id).delete()
+    db.commit()
+    return True
 
 
 @app.patch('/bericht/{bericht_id}', status_code=status.HTTP_200_OK)
@@ -253,3 +325,6 @@ async def update_bericht(bericht: BerichtenBase, bericht_id: int, db: db_depende
     db.refresh(db_bericht)
 
     return db_bericht
+
+
+
