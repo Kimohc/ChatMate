@@ -1,6 +1,6 @@
 <template>
   <div id="app">
-
+    <my-alert ref="myAlert"></my-alert>
     <div class="sidebar">
       <nav-bar></nav-bar>
       <ul>
@@ -22,7 +22,7 @@
         <h4>Land: {{bot.bot_land}}</h4>
         <div class="buttons">
           <button @click="chat">Chat!</button>
-          <button @click="skip">Skip</button>
+          <button @click="skip" id="secondary">Skip</button>
         </div>
       </div>
 
@@ -33,11 +33,15 @@
 import '/src/app.css'
 import axios from "axios";
 import Navbar from '/src/components/Nav.vue'
+import MyAlert from '/src/components/Alert.vue'
 
 export default {
   name: 'Swipe_view',
   components: {
-    'nav-bar': Navbar
+    'nav-bar': Navbar,
+    'my-alert': MyAlert,
+  },
+  props:{
 
   },
   data() {
@@ -47,27 +51,55 @@ export default {
       logged_in: false,
       bot: {},
       gesprekken: [],
-      bots: []
-    }
+      bots: [],
+      showalert: this.$route.params.showalert,
+
+  }
   },
   methods: {
+    showAlert(message, isGood) {
+      const alert = this.$refs.myAlert;
+      alert.localMessage = message;
+      alert.localIsGood = isGood;
+      alert.showToast();
+    },
     async getRandomBot(){
       try{
-        let response = await axios.get('http://127.0.0.1:8000/randombot')
+        let response = await axios.get('http://127.0.0.1:8000/randombot', {
+          headers: {
+            'Authorization': `Bearer ${this.access_token}`
+          }
+        })
         this.bot = response.data
 
         console.log(response)
       }
       catch(e){
         console.log(e)
+        let nieuweAccestoken = await axios.get(`http://127.0.0.1:8000/refresh?gebruikersnaam=${this.user.username}`)
+        this.access_token = nieuweAccestoken.data.access_token
+        await this.getRandomBot()
       }
     },
     async skip(){
       try{
+        let response = await axios.post(`http://127.0.0.1:8000/bots/gezien`, {
+          "gebruiker_id": this.user.user_id,
+          "bot_id": this.bot.bot_id
+        }, {
+          headers: {
+            'Authorization': `Bearer ${this.access_token}`
+          }
+        })
+        console.log(response)
        await this.getRandomBot()
+
       }
       catch(e){
         console.log(e)
+        let nieuweAccestoken = await axios.get(`http://127.0.0.1:8000/refresh?gebruikersnaam=${this.user.username}`)
+        this.access_token = nieuweAccestoken.data.access_token
+        await this.skip()
       }
     },
     async chat(){
@@ -75,7 +107,20 @@ export default {
         let response = await axios.post(`http://127.0.0.1:8000/gesprek`, {
           "gebruiker_id": this.user.user_id,
           "bot_id": this.bot.bot_id
+        }, {
+          headers: {
+            'Authorization': `Bearer ${this.access_token}`
+          }
         })
+        let add_to_seen = await axios.post(`http://127.0.0.1:8000/bots/gezien`, {
+          "gebruiker_id": this.user.user_id,
+          "bot_id": this.bot.bot_id
+        }, {
+          headers: {
+            'Authorization': `Bearer ${this.access_token}`
+          }
+        })
+        console.log(add_to_seen)
         this.gesprekken = []
         await this.getGesprekken()
         this.bots = []
@@ -85,22 +130,36 @@ export default {
       }
       catch(e){
         console.log(e)
+        let nieuweAccestoken = await axios.get(`http://127.0.0.1:8000/refresh?gebruikersnaam=${this.user.username}`)
+        this.access_token = nieuweAccestoken.data.access_token
+        await this.chat()
       }
     },
     async getGesprekken(){
       try{
-      let response = await axios.get(`http://127.0.0.1:8000/gesprekken/${this.user.user_id}`)
+      let response = await axios.get(`http://127.0.0.1:8000/gesprekken/${this.user.user_id}`, {
+        headers: {
+          'Authorization': `Bearer ${this.access_token}`
+        }
+      })
       this.gesprekken = response.data
         console.log(response)
       }
       catch(e){
         console.log(e)
+        let nieuweAccestoken = await axios.get(`http://127.0.0.1:8000/refresh?gebruikersnaam=${this.user.username}`)
+        this.access_token = nieuweAccestoken.data.access_token
+        await this.getGesprekken()
       }
     },
     async getBot(){
       try{
         for(let gesprek in this.gesprekken){
-          let response = await axios.get(`http://127.0.0.1:8000/bot/${this.gesprekken[gesprek].bot_id}`)
+          let response = await axios.get(`http://127.0.0.1:8000/bot/${this.gesprekken[gesprek].bot_id}`, {
+            headers: {
+              'Authorization': `Bearer ${this.access_token}`
+            }
+          })
           console.log(response.data.bot_naam)
           let bot = {
             'bot_id': response.data.bot_id,
@@ -116,22 +175,48 @@ export default {
       }
       catch(e){
     console.log(e)
+        let nieuweAccestoken = await axios.get(`http://127.0.0.1:8000/refresh?gebruikersnaam=${this.user.username}`)
+        this.access_token = nieuweAccestoken.data.access_token
+        await this.getBot()
       }
     },
 
   },
-  created() {
+  async created() {
+    try {
+      this.logged_in = this.$store.getters.getLoggedIn;
+      this.user = this.$store.getters.getUser;
+      this.access_token = this.$store.getters.getAccess_Token;
 
+      // Redirect to sign-in if not logged in
+      if (!this.logged_in) {
+        this.$router.push('/signin');
+        return;
+      }
+
+      console.log(this.user);
+
+      await this.getRandomBot();
+      await this.getGesprekken();
+      await this.getBot();
+
+      console.log(this.bots);
+
+      if (this.showalert === 'true') {
+        this.showAlert("Ingelogd", true);
+      }
+    } catch (e) {
+      console.error(e);
+      // Check if already on sign-in page to avoid infinite loop
+      if (this.$route.path !== '/signin') {
+        this.$router.push('/signin');
+      }
+    }
   },
+
+
   async mounted() {
-    this.logged_in = this.$store.getters.getLoggedIn
-    this.user = this.$store.getters.getUser
-    this.access_token = this.$store.getters.getAccess_Token
-    console.log(this.user)
-    await this.getRandomBot()
-    await this.getGesprekken()
-    await this.getBot()
-    console.log(this.bots)
+
   }
 }
 

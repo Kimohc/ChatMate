@@ -17,7 +17,6 @@ import io
 import random
 import asyncio
 
-
 app = FastAPI()
 
 app.add_middleware(
@@ -59,6 +58,11 @@ class GesprekkenBase(BaseModel):
     bot_id: str
 
 
+class Bots_GezienBase(BaseModel):
+    gebruiker_id: str
+    bot_id: str
+
+
 def get_db():
     db = SessionLocal()
     try:
@@ -71,7 +75,7 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 SECRET_KEY = "your-secret-key"
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 5
+ACCESS_TOKEN_EXPIRE_MINUTES = 0.5
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 db_dependency = Annotated[Session, Depends(get_db)]
@@ -132,14 +136,15 @@ async def create_user(gebruiker: GebruikerBase, db: db_dependency):
     db_user = models.Gebruiker(**gebruiker.dict())
     db_user.wachtwoord = pwd_context.hash(db_user.wachtwoord)
     db_user.gebruiker_id = uuid.uuid4()
+
     db.add(db_user)
     db.commit()
     db.refresh(db_user)
     return db_user
 
 
-@app.get('/gebruiker/{id}', status_code=status.HTTP_200_OK)
-async def get_user_by_id(gebruiker_id: str, db: db_dependency):
+@app.get('/gebruiker/{gebruiker_id}', status_code=status.HTTP_200_OK)
+async def get_user_by_id(gebruiker_id: str,  db: db_dependency):
     return db.query(models.Gebruiker).where(models.Gebruiker.gebruiker_id == gebruiker_id).first()
 
 
@@ -180,21 +185,23 @@ async def get_new_acces_token(gebruikersnaam: str):
     return {"access_token": access_token}
 
 
-@app.delete('/gebruiker/{id}', status_code=status.HTTP_200_OK)
-async def delete_user(id: str, db: db_dependency):
+@app.delete('/gebruiker/{id}', status_code=status.HTTP_200_OK, )
+async def delete_user(id: str, db: db_dependency, current_user: UserInDB = Depends(get_current_user)):
     db.query(models.Gebruiker).where(models.Gebruiker.gebruiker_id == id).delete()
     db.commit()
     return True
 
 
 @app.post('/gebruiker/image/{id}', status_code=status.HTTP_200_OK)
-async def add_foto(id: str, db: db_dependency, file: UploadFile = File(...)):
+async def add_foto(id: str, db: db_dependency, file: UploadFile = File(...),
+                   current_user: UserInDB = Depends(get_current_user)):
     user_to_upload = db.query(models.Gebruiker).filter(models.Gebruiker.gebruiker_id == id).first()
 
     if not user_to_upload:
         raise HTTPException(status_code=404, detail="Gebruiker not found")
+    if not file:
+        return 'test , there is no image'
 
-    # Save the file
     file.filename = f"{uuid.uuid4()}.png"
     contents = await file.read()
     file_path = f"images/{file.filename}"
@@ -204,6 +211,7 @@ async def add_foto(id: str, db: db_dependency, file: UploadFile = File(...)):
 
     # Update the user object
     user_to_upload.foto = file.filename
+
     db.add(user_to_upload)
     db.commit()
     db.refresh(user_to_upload)
@@ -212,16 +220,18 @@ async def add_foto(id: str, db: db_dependency, file: UploadFile = File(...)):
 
 
 @app.get('/gebruiker/{id}/image', status_code=status.HTTP_200_OK)
-async def get_image_user(id: str, db: db_dependency):
+async def get_image_user(id: str, db: db_dependency, current_user: UserInDB = Depends(get_current_user)):
     user = db.query(models.Gebruiker).where(models.Gebruiker.gebruiker_id == id).first()
     foto = user.foto
     path = f'images/{foto}'
+    if path == "images/None":
+        return
     return FileResponse(path)
 
 
 @app.patch('/gebruiker/{id}', status_code=status.HTTP_200_OK)
 async def update_user(id: str, gebruiker: GebruikerBase, db: db_dependency,
-                      ):
+                      current_user: UserInDB = Depends(get_current_user)):
     db_gebruiker = db.query(models.Gebruiker).filter(models.Gebruiker.gebruiker_id == id).first()
 
     if db_gebruiker is None:
@@ -239,12 +249,13 @@ async def update_user(id: str, gebruiker: GebruikerBase, db: db_dependency,
 
 
 @app.get('/gesprekken/{user_id}', status_code=status.HTTP_200_OK)
-async def get_gesprekken(user_id: str, db: db_dependency, ):
+async def get_gesprekken(user_id: str, db: db_dependency, current_user: UserInDB = Depends(get_current_user)):
     return db.query(models.Gesprekken).where(models.Gesprekken.gebruiker_id == user_id).all()
 
 
 @app.post('/gesprek', status_code=status.HTTP_201_CREATED)
-async def create_gesprek(gesprek: GesprekkenBase, db: db_dependency):
+async def create_gesprek(gesprek: GesprekkenBase, db: db_dependency,
+                         current_user: UserInDB = Depends(get_current_user)):
     db_gesprek = models.Gesprekken(**gesprek.dict())
     db.add(db_gesprek)
     db.commit()
@@ -253,7 +264,7 @@ async def create_gesprek(gesprek: GesprekkenBase, db: db_dependency):
 
 
 @app.delete('/gesprek/{gesprek_id}', status_code=status.HTTP_200_OK)
-async def delete_gesprek(gesprek_id: int, db: db_dependency):
+async def delete_gesprek(gesprek_id: int, db: db_dependency, current_user: UserInDB = Depends(get_current_user)):
     db.query(models.Gesprekken).where(models.Gesprekken.gesprek_id == gesprek_id).delete()
     db.commit()
     return True
@@ -261,14 +272,22 @@ async def delete_gesprek(gesprek_id: int, db: db_dependency):
 
 @app.get('/bots', status_code=status.HTTP_200_OK)
 async def get_bots(db: db_dependency):
-    return db.query(models.Bots).all()
+    alle_bots = db.query(models.Bots).all()
+    geziene_bots = await get_alle_geziene_bots(db)
+    geziene_bots_ids = {bot.bot_id for bot in geziene_bots}
+    unseen_bots = [bot for bot in alle_bots if bot.bot_id not in geziene_bots_ids]
+    print(f'unseen bots: {len(unseen_bots)}')
+    return unseen_bots
 
 
 @app.get('/randombot', status_code=status.HTTP_200_OK)
-async def get_random_bot(db: db_dependency):
+async def get_random_bot(db: db_dependency, current_user: UserInDB = Depends(get_current_user)):
     alle_bots = await get_bots(db)
     length = len(alle_bots)
+    print(f'length: {length}')
     random_bot_index = random.randint(0, length)
+    if random_bot_index < 1:
+        return 'geen mensen meer beschikbaar'
     return alle_bots[random_bot_index]
 
 
@@ -278,13 +297,14 @@ async def get_bot_by_id(bot_id: str, db: db_dependency):
 
 
 @app.get('/gesprek/{gebruiker_id}/{bot_id}', status_code=status.HTTP_200_OK)
-async def get_gesprek_gebruiker_bot(gebruiker_id: str, bot_id: str, db: db_dependency):
+async def get_gesprek_gebruiker_bot(gebruiker_id: str, bot_id: str, db: db_dependency,
+                                    current_user: UserInDB = Depends(get_current_user)):
     return db.query(models.Gesprekken).where(models.Gesprekken.gebruiker_id == gebruiker_id) and db.query(
         models.Gesprekken).where(models.Gesprekken.bot_id == bot_id).first()
 
 
 @app.get('/berichten/{gesprek_id}', status_code=status.HTTP_200_OK)
-async def get_berichten_gesprek(gesprek_id: int, db: db_dependency):
+async def get_berichten_gesprek(gesprek_id: int, db: db_dependency, current_user: UserInDB = Depends(get_current_user)):
     return db.query(models.Berichten).where(models.Berichten.gesprek_id == gesprek_id).all()
 
 
@@ -295,7 +315,6 @@ async def make_bericht(berichten: BerichtenBase, db: db_dependency):
     db.commit()
     db.refresh(db_bericht)
     ai_response = ai.send_request_to_ai(db_bericht.bericht)
-
     return {
         "user_bericht": db_bericht,
         "AI_bericht": ai_response
@@ -303,14 +322,28 @@ async def make_bericht(berichten: BerichtenBase, db: db_dependency):
 
 
 @app.delete('/bericht/{bericht_id}', status_code=status.HTTP_200_OK)
-async def delete_bericht(bericht_id: int, db: db_dependency):
+async def delete_bericht(bericht_id: int, db: db_dependency, current_user: UserInDB = Depends(get_current_user)):
     db.query(models.Berichten).where(models.Berichten.bericht_id == bericht_id).delete()
     db.commit()
     return True
 
 
+@app.post('/bots/gezien', status_code=status.HTTP_201_CREATED)
+async def bot_is_gezien(db: db_dependency, bot_gezien: Bots_GezienBase, current_user: UserInDB = Depends(get_current_user)):
+    db_gezien_bot = models.Bots_Gezien(**bot_gezien.dict())
+    db.add(db_gezien_bot)
+    db.commit()
+    db.refresh(db_gezien_bot)
+    return db_gezien_bot
+
+
+async def get_alle_geziene_bots(db: db_dependency):
+    return db.query(models.Bots_Gezien).all()
+
+
 @app.patch('/bericht/{bericht_id}', status_code=status.HTTP_200_OK)
-async def update_bericht(bericht: BerichtenBase, bericht_id: int, db: db_dependency):
+async def update_bericht(bericht: BerichtenBase, bericht_id: int, db: db_dependency,
+                         current_user: UserInDB = Depends(get_current_user)):
     db_bericht = db.query(models.Berichten).filter(models.Berichten.bericht_id == bericht_id).first()
 
     if db_bericht is None:
@@ -325,6 +358,3 @@ async def update_bericht(bericht: BerichtenBase, bericht_id: int, db: db_depende
     db.refresh(db_bericht)
 
     return db_bericht
-
-
-

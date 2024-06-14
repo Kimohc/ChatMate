@@ -1,8 +1,8 @@
 <template>
   <div id="app">
     <nav-bar></nav-bar>
+    <my-alert ref="myAlert" ></my-alert>
     <main>
-
       <div class="container" v-if="registered">
         <div class="folder">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" clip-rule="evenodd" d="M16 7C16 9.20914 14.2091 11 12 11C9.79086 11 8 9.20914 8 7C8 4.79086 9.79086 3 12 3C14.2091 3 16 4.79086 16 7ZM14 7C14 8.10457 13.1046 9 12 9C10.8954 9 10 8.10457 10 7C10 5.89543 10.8954 5 12 5C13.1046 5 14 5.89543 14 7Z" fill="currentColor" /><path d="M16 15C16 14.4477 15.5523 14 15 14H9C8.44772 14 8 14.4477 8 15V21H6V15C6 13.3431 7.34315 12 9 12H15C16.6569 12 18 13.3431 18 15V21H16V15Z" fill="currentColor" /></svg>
@@ -42,12 +42,13 @@
 import '/src/app.css'
 import Navbar from '/src/components/Nav.vue'
 import axios from "axios";
+import MyAlert from '/src/components/Alert.vue'
 
 export default {
   name: 'Signin_view',
   components: {
     'nav-bar': Navbar,
-
+    'my-alert': MyAlert,
   },
   data() {
     return {
@@ -62,10 +63,19 @@ export default {
     }
   },
   methods: {
+    showAlert(message, isGood) {
+      const alert = this.$refs.myAlert;
+      alert.localMessage = message;
+      alert.localIsGood = isGood;
+      alert.showToast();
+    },
+    async redirectToHome() {
+      await this.$router.push(`/swipe/${true}`);
+    },
   async register(){
     try{
-      if (!this.usernameRegister  || !this.passwordRegister || !this.emailRegister){
-        alert("Vul alle velden in")
+      if (!this.usernameRegister  || !this.passwordRegister || !this.emailRegister || this.usernameRegister.length > 100 || this.passwordRegister.length > 100 || this.emailRegister.length > 100 ){
+        this.showAlert("Vul alle velden in", false)
         return
       }
       const response = await axios.post('http://127.0.0.1:8000/gebruiker/', {
@@ -73,41 +83,53 @@ export default {
         "gebruikersnaam": this.usernameRegister,
         "wachtwoord": this.passwordRegister
       })
-      console.log(response)
+      console.log(response.data)
       this.emailRegister = ''
       this.passwordRegister = ''
       this.usernameRegister = ''
-      alert('gebruiker aangemaakt')
+      this.showAlert('gebruiker aangemaakt', true)
       this.registered = true
+
     }
     catch (error) {
-      alert('er is iets mis gegaan probeer het nog eens')
-      console.log(error)
-    }
+      if (error.response === undefined) {
+        this.showAlert('Account met deze gebruikersnaam of e-mail bestaat al.', false);
+        console.log(error);
+      } else {
+        this.showAlert('Er is iets misgegaan probeer het nog eens.', false)
+        console.log(error)
+        }
+      }
   },
     async login(){
     try{
-      if (this.username === '' || this.password === ''){
-        alert('vul alle velden in')
+      if (this.username === '' || this.password === '' || this.username.length > 100 || this.password.length > 100 ){
+        this.showAlert('vul alle velden in', false)
       }
       const response = await axios.post('http://127.0.0.1:8000/gebruiker/login', {
         'gebruikersnaam': this.username,
         'wachtwoord': this.password
       })
+
       this.username = ''
       this.password = ''
-      alert("ingelogd")
       this.$store.commit('setLoggedIn', true);
-      this.$store.commit('setAccess_Token', this.access_token);
+      this.$store.commit('setAccess_Token', response.data.access_token);
       this.$store.commit('setUser', response.data);
       console.log(this.$store.commit('setUser', response.data))
-      this.$router.push('/swipe')
+      await this.redirectToHome()
     }
     catch (error){
-      alert("Er is iets mis gegaan probeer het nog eens")
-      console.log(error)
+      if ( error.response.status === 401) {
+        this.showAlert('Verkeerd gebruikersnaam of wachtwoord.')
+      }
+      else{
+        this.showAlert("Er is iets mis gegaan probeer het nog eens", false)
+        console.log(error)
+      }
     }
-    }
+    },
+
   },
   created() {
   },

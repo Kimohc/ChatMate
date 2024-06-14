@@ -7,7 +7,7 @@
     <h5>We provide chatting services with fake profiles to ease your loneliness</h5>
     <div class="buttons">
     <button @click="$router.push('/signin')">Sign in!</button>
-    <button>Contact us!</button>
+    <button id="secondary">Contact us!</button>
     </div>
 
     <div class="buttons">
@@ -21,7 +21,6 @@
   </div>
 </template>
 <script>
-import '/src/app.css'
 import Navbar from '/src/components/Nav.vue'
 
 export default {

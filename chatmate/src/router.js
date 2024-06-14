@@ -9,7 +9,7 @@ import Chat from '/src/Views/Chat.vue'
 const routes = [
     { path: '/', component: Home },
     {path: '/signin', component: Signin},
-    {path: '/swipe', component: Swipe},
+    {path: '/swipe/:showalert', component: Swipe},
     {path: '/profiel', component: Profiel},
     {path: '/chat/:bot_id', component: Chat}
 ];

@@ -37,3 +37,10 @@ class Gesprekken(Base):
     gesprek_id = Column(Integer, primary_key=True, index=True)
     gebruiker_id = Column(String(100))
     bot_id = Column(String(100))
+
+
+class Bots_Gezien(Base):
+    __tablename__ = 'bots_gezien'
+    gezien_id = Column(Integer, primary_key=True, index=True)
+    gebruiker_id = Column(String(100))
+    bot_id = Column(String(100))

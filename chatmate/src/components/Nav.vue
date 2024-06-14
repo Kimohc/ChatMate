@@ -3,7 +3,7 @@
     <div class="logo">
       <div v-if="swipe">
         <div v-if="logged_in" class="aside-logo">
-          <router-link to="/swipe">   <img class="aside-logo" src="/Jakubsk's..png" alt=""></router-link>
+          <router-link to="/swipe/${false}">   <img class="aside-logo" src="/Jakubsk's..png" alt=""></router-link>
         </div>
         <div v-else class="aside-logo">
           <router-link to="/">   <img class="aside-logo"  src="/Jakubsk's..png" alt=""></router-link>
@@ -11,7 +11,7 @@
       </div>
       <div v-else>
         <div v-if="logged_in">
-          <router-link to="/swipe">   <img src="/Jakubsk's..png" alt=""></router-link>
+          <router-link to='/swipe/{false}'>   <img src="/Jakubsk's..png" alt=""></router-link>
         </div>
         <div v-else>
           <router-link to="/">   <img src="/Jakubsk's..png" alt=""></router-link>
