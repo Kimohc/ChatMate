@@ -1,7 +1,8 @@
 <template>
   <div id="app">
     <my-alert ref="myAlert"></my-alert>
-    <div class="sidebar">
+    <span class="hamburger" id="hamburger" @click="openSideBar"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M8.01562 6.98193C7.46334 6.98193 7.01562 7.43285 7.01562 7.98513C7.01562 8.53742 7.46334 8.98833 8.01563 8.98833H15.9659C16.5182 8.98833 16.9659 8.53742 16.9659 7.98513C16.9659 7.43285 16.5182 6.98193 15.9659 6.98193H8.01562Z" fill="currentColor" /><path d="M7.01562 12C7.01562 11.4477 7.46334 10.9968 8.01562 10.9968H15.9659C16.5182 10.9968 16.9659 11.4477 16.9659 12C16.9659 12.5523 16.5182 13.0032 15.9659 13.0032H8.01563C7.46334 13.0032 7.01562 12.5523 7.01562 12Z" fill="currentColor" /><path d="M8.0249 15.0122C7.47262 15.0122 7.0249 15.4631 7.0249 16.0154C7.0249 16.5677 7.47262 17.0186 8.0249 17.0186H15.9752C16.5275 17.0186 16.9752 16.5677 16.9752 16.0154C16.9752 15.4631 16.5275 15.0122 15.9752 15.0122H8.0249Z" fill="currentColor" /><path fill-rule="evenodd" clip-rule="evenodd" d="M3 6C3 4.34315 4.34315 3 6 3H18C19.6569 3 21 4.34315 21 6V18C21 19.6569 19.6569 21 18 21H6C4.34315 21 3 19.6569 3 18V6ZM6 5H18C18.5523 5 19 5.44772 19 6V18C19 18.5523 18.5523 19 18 19H6C5.44772 19 5 18.5523 5 18V6C5 5.44772 5.44772 5 6 5Z" fill="currentColor" /></svg></span>
+    <div class="sidebar" id="sidebar">
       <nav-bar></nav-bar>
       <ul>
         <li v-for="boti in bots" :key="boti.bot_id" @click="$router.push(`/chat/${boti.bot_id}`)">
@@ -9,6 +10,7 @@
             <h2>{{boti.bot_naam}}</h2>
         </li>
       </ul>
+      <button class="hamburger-close" @click="closeSideBar">Close</button>
     </div>
 
 
@@ -57,6 +59,12 @@ export default {
   }
   },
   methods: {
+    openSideBar(){
+      document.querySelector("#sidebar").style.display = 'block'
+    },
+    closeSideBar(){
+      document.querySelector("#sidebar").style.display = 'none'
+    },
     showAlert(message, isGood) {
       const alert = this.$refs.myAlert;
       alert.localMessage = message;
@@ -71,14 +79,26 @@ export default {
           }
         })
         this.bot = response.data
-
         console.log(response)
+        if (response.data === false){
+          alert('Geen bots meer beschikbaar')
+        }
       }
       catch(e){
-        console.log(e)
-        let nieuweAccestoken = await axios.get(`http://127.0.0.1:8000/refresh?gebruikersnaam=${this.user.username}`)
-        this.access_token = nieuweAccestoken.data.access_token
-        await this.getRandomBot()
+        if(e.response === undefined){
+          this.showAlert('Er is iets misgegaan probeer het nog eens', false)
+        }
+        else if(e.response.status === 401)
+        {
+          console.log(e)
+          let nieuweAccestoken = await axios.get(`http://127.0.0.1:8000/refresh?gebruikersnaam=${this.user.username}`)
+          this.access_token = nieuweAccestoken.data.access_token
+          await this.getRandomBot()
+        }
+        else{
+          console.log(e)
+        }
+
       }
     },
     async skip(){
@@ -96,10 +116,17 @@ export default {
 
       }
       catch(e){
-        console.log(e)
-        let nieuweAccestoken = await axios.get(`http://127.0.0.1:8000/refresh?gebruikersnaam=${this.user.username}`)
-        this.access_token = nieuweAccestoken.data.access_token
-        await this.skip()
+        if(e.response === undefined){
+          console.log(e)
+          this.showalert('Er is iets misgegaan probeer het nog eens', false)
+        }
+        else if(e.response.status === 401){
+          console.log(e)
+          let nieuweAccestoken = await axios.get(`http://127.0.0.1:8000/refresh?gebruikersnaam=${this.user.username}`)
+          this.access_token = nieuweAccestoken.data.access_token
+          await this.skip()
+        }
+
       }
     },
     async chat(){

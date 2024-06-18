@@ -38,7 +38,12 @@
       </div>
     <div class="Down">
     <input type="text" v-model="message">
-    <button @click="sendMessage">Send</button>
+      <div v-if="showLoading">
+        <button disabled> Loading</button>
+      </div>
+      <div v-else>
+        <button @click="sendMessage">Send</button>
+      </div>
       <button id="secondary" @click="confirmReserveringCancellation(gesprek_id)">Block user</button>
     </div>
   </div>
@@ -195,6 +200,7 @@ export default {
             this.showAlert('Je mag geen lege bericht versturen', false)
             return
           }
+        this.showLoading = true;
         let response = await axios.post(`http://127.0.0.1:8000/berichten/`, {
           "gesprek_id": this.gesprek_id,
           "verstuurder_id": this.user.user_id,
@@ -205,10 +211,9 @@ export default {
 
         await this.getMessages(this.gesprek_id, this.user.user_id, this.messages, this.user.username);
 
-        this.showLoading = true;
 
         let ai_message = response.data.AI_bericht;
-        let ai_response = await axios.post(`http://127.0.0.1:8000/berichten/`, {
+        let ai_response = await axios.post(`http://127.0.0.1:8000/berichten/AI`, {
           "gesprek_id": this.gesprek_id,
           "verstuurder_id": this.bot.bot_id,
           "bericht": ai_message.content,

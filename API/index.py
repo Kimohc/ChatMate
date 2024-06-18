@@ -144,7 +144,7 @@ async def create_user(gebruiker: GebruikerBase, db: db_dependency):
 
 
 @app.get('/gebruiker/{gebruiker_id}', status_code=status.HTTP_200_OK)
-async def get_user_by_id(gebruiker_id: str,  db: db_dependency):
+async def get_user_by_id(gebruiker_id: str, db: db_dependency):
     return db.query(models.Gebruiker).where(models.Gebruiker.gebruiker_id == gebruiker_id).first()
 
 
@@ -286,8 +286,9 @@ async def get_random_bot(db: db_dependency, current_user: UserInDB = Depends(get
     length = len(alle_bots)
     print(f'length: {length}')
     random_bot_index = random.randint(0, length)
-    if random_bot_index < 1:
-        return 'geen mensen meer beschikbaar'
+    if length < 1:
+        print('geen mensen meer beschikbaar')
+        return False
     return alle_bots[random_bot_index]
 
 
@@ -321,6 +322,15 @@ async def make_bericht(berichten: BerichtenBase, db: db_dependency):
     }
 
 
+@app.post('/berichten/AI', status_code=status.HTTP_201_CREATED)
+async def make_bericht_bot(berichten: BerichtenBase, db: db_dependency):
+    db_bericht = models.Berichten(**berichten.dict())
+    db.add(db_bericht)
+    db.commit()
+    db.refresh(db_bericht)
+    return db_bericht
+
+
 @app.delete('/bericht/{bericht_id}', status_code=status.HTTP_200_OK)
 async def delete_bericht(bericht_id: int, db: db_dependency, current_user: UserInDB = Depends(get_current_user)):
     db.query(models.Berichten).where(models.Berichten.bericht_id == bericht_id).delete()
@@ -329,7 +339,8 @@ async def delete_bericht(bericht_id: int, db: db_dependency, current_user: UserI
 
 
 @app.post('/bots/gezien', status_code=status.HTTP_201_CREATED)
-async def bot_is_gezien(db: db_dependency, bot_gezien: Bots_GezienBase, current_user: UserInDB = Depends(get_current_user)):
+async def bot_is_gezien(db: db_dependency, bot_gezien: Bots_GezienBase,
+                        current_user: UserInDB = Depends(get_current_user)):
     db_gezien_bot = models.Bots_Gezien(**bot_gezien.dict())
     db.add(db_gezien_bot)
     db.commit()

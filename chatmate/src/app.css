@@ -187,6 +187,22 @@ button{
     box-sizing: border-box;
     position: fixed;
     overflow-y: scroll;
+    transition: 0.5s;
+}
+.hamburger{
+    position: absolute;
+    top: 0;
+    left: 0;
+    display: none;
+    transition: 0.1s;
+}
+.hamburger:hover{
+    scale: 1.2;
+    cursor: pointer;
+
+}
+.hamburger-close{
+    display: none;
 }
 .sidebar img {
     width: 90px; /* Set a fixed width */
@@ -194,6 +210,7 @@ button{
     border-radius: 50%;
     object-fit: cover; /* Ensures the image covers the area without distortion */
     margin-right: 10px; /* Adds some space between the image and text */
+    transition: 0.3s;
 }
 
 .sidebar ul li{
@@ -201,7 +218,7 @@ button{
     flex-direction: row;
     font-size: 11px;
     margin: 20px;
-
+    transition: 0.3s;
 }
 
 .card{
@@ -232,7 +249,17 @@ button{
 
 @media (max-width: 768px) {
     .sidebar{
+        top: 0;
+        left: 0;
+        position: absolute;
         display: none;
+        transition: 0.3s;
+    }
+    .hamburger{
+        display: block;
+    }
+    .hamburger-close{
+        display: block;
     }
     .card img {
         width: 120px;
@@ -311,8 +338,11 @@ button{
         justify-content: center;
     }
     .sidebar {
+        left: 0;
+        position: absolute;
         display: none; /* Hide sidebar on smaller screens */
     }
+
     .main-content {
         margin: 20px;
     }
