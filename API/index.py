@@ -48,9 +48,9 @@ class BotsBase(BaseModel):
 
 
 class BerichtenBase(BaseModel):
-    gesprek_id: int
-    verstuurder_id: str
-    bericht: str
+    gesprek_id: Union[int, None] = None
+    verstuurder_id: Union[str, None] = None
+    bericht: Union[str, None] = None
 
 
 class GesprekkenBase(BaseModel):
@@ -300,6 +300,9 @@ async def get_bot_by_id(bot_id: str, db: db_dependency):
 @app.get('/gesprek/{gebruiker_id}/{bot_id}', status_code=status.HTTP_200_OK)
 async def get_gesprek_gebruiker_bot(gebruiker_id: str, bot_id: str, db: db_dependency,
                                     current_user: UserInDB = Depends(get_current_user)):
+    bot = await get_bot_by_id(bot_id, db)
+    beschrijving = f'You are on a dating app. Your bio is: {bot.bot_beschrijving} Use this information in your answers and remember to mention your name, passions, and interests when appropriate.'
+    ai.bot_description = beschrijving
     return db.query(models.Gesprekken).where(models.Gesprekken.gebruiker_id == gebruiker_id) and db.query(
         models.Gesprekken).where(models.Gesprekken.bot_id == bot_id).first()
 
@@ -310,25 +313,21 @@ async def get_berichten_gesprek(gesprek_id: int, db: db_dependency, current_user
 
 
 @app.post('/berichten/', status_code=status.HTTP_201_CREATED)
-async def make_bericht(berichten: BerichtenBase, db: db_dependency):
+async def make_bericht(berichten: BerichtenBase, db: db_dependency, current_user: UserInDB = Depends(get_current_user)):
     db_bericht = models.Berichten(**berichten.dict())
     db.add(db_bericht)
     db.commit()
     db.refresh(db_bericht)
-    ai_response = ai.send_request_to_ai(db_bericht.bericht)
     return {
         "user_bericht": db_bericht,
-        "AI_bericht": ai_response
     }
 
 
-@app.post('/berichten/AI', status_code=status.HTTP_201_CREATED)
-async def make_bericht_bot(berichten: BerichtenBase, db: db_dependency):
+@app.post('/request/ai', status_code=status.HTTP_200_OK)
+async def send_request(berichten: BerichtenBase, current_user: UserInDB = Depends(get_current_user)):
     db_bericht = models.Berichten(**berichten.dict())
-    db.add(db_bericht)
-    db.commit()
-    db.refresh(db_bericht)
-    return db_bericht
+    ai_response = ai.send_request_to_ai(db_bericht.bericht)
+    return ai_response
 
 
 @app.delete('/bericht/{bericht_id}', status_code=status.HTTP_200_OK)

@@ -17,7 +17,7 @@
     <svg @click="$router.push(`/swipe/${false}`)" width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M11.9481 14.8285L10.5339 16.2427L6.29126 12L10.5339 7.7574L11.9481 9.17161L10.1197 11H17.6568V13H10.1197L11.9481 14.8285Z" fill="currentColor" /><path fill-rule="evenodd" clip-rule="evenodd" d="M23 19C23 21.2091 21.2091 23 19 23H5C2.79086 23 1 21.2091 1 19V5C1 2.79086 2.79086 1 5 1H19C21.2091 1 23 2.79086 23 5V19ZM19 21H5C3.89543 21 3 20.1046 3 19V5C3 3.89543 3.89543 3 5 3H19C20.1046 3 21 3.89543 21 5V19C21 20.1046 20.1046 21 19 21Z" fill="currentColor" /></svg>
       <img :src="bot.bot_foto" alt="">
     </div>
-    <div class="chat">
+    <div class="chat" id="chat" ref="chatContainer">
       <div v-for="(message) in messages" :key="message.bericht_id" :class="[message.verstuurder === 'you' ? 'bubble-you' : 'bubble-me']">
         <div class="message-container">
           <div class="message">
@@ -37,7 +37,7 @@
         <h3>Typing</h3>
       </div>
     <div class="Down">
-    <input type="text" v-model="message">
+    <input @keyup.enter="sendMessage" type="text" v-model="message">
       <div v-if="showLoading">
         <button disabled> Loading</button>
       </div>
@@ -83,6 +83,14 @@ export default {
     }
   },
   methods: {
+    scrollToNewestMessage() {
+      this.$nextTick(() => {
+        const chatContainer = this.$refs.chatContainer;
+        if (chatContainer) {
+          chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+      });
+    },
     toggleModal(message, bericht_id) {
       this.modalBericht = message
       this.berichtId = bericht_id
@@ -186,7 +194,7 @@ export default {
         }
         this.messages = messages
         console.log(messages)
-
+        this.scrollToNewestMessage()
       } catch (e) {
         console.log(e)
         let nieuweAccestoken = await axios.get(`http://127.0.0.1:8000/refresh?gebruikersnaam=${username}`)
@@ -205,18 +213,33 @@ export default {
           "gesprek_id": this.gesprek_id,
           "verstuurder_id": this.user.user_id,
           "bericht": this.message,
-        });
-        this.message = '';
+        }, {
+          headers: {
+            'Authorization': `Bearer ${this.access_token}`
+          }});
+
         this.messages = [];
 
         await this.getMessages(this.gesprek_id, this.user.user_id, this.messages, this.user.username);
 
-
-        let ai_message = response.data.AI_bericht;
-        let ai_response = await axios.post(`http://127.0.0.1:8000/berichten/AI`, {
+        let requestToAi = await axios.post(`http://127.0.0.1:8000/request/ai`, {
+          "bericht": this.message
+        }, {
+          headers: {
+            'Authorization': `Bearer ${this.access_token}`
+          }
+        })
+        this.message = ''
+        console.log(requestToAi)
+        let ai_message = requestToAi.data;
+        let ai_response = await axios.post(`http://127.0.0.1:8000/berichten/`, {
           "gesprek_id": this.gesprek_id,
           "verstuurder_id": this.bot.bot_id,
           "bericht": ai_message.content,
+        }, {
+          headers: {
+            'Authorization': `Bearer ${this.access_token}`
+          }
         });
         this.messages = [];
 
@@ -226,6 +249,9 @@ export default {
         console.log(ai_response);
       } catch (e) {
         console.log(e);
+        let nieuweAccestoken = await axios.get(`http://127.0.0.1:8000/refresh?gebruikersnaam=${this.user.username}`)
+        this.access_token = nieuweAccestoken.data.access_token
+        await this.sendMessage()
       } finally {
         // Hide loading spinner
         this.showLoading = false;
@@ -243,21 +269,21 @@ export default {
         await this.sendMessage()
       }
     },
-    async deleteMessage(gesprek_id) {
+    async deleteMessage(bericht_id) {
       try {
-        let response = await axios.delete(`http://127.0.0.1:8000/bericht/${gesprek_id}`, {
+        let response = await axios.delete(`http://127.0.0.1:8000/bericht/${bericht_id}`, {
           headers: {
             'Authorization': `Bearer ${this.access_token}`
           }
         })
         this.messages = []
-        await this.getMessages(gesprek_id, this.user.user_id, this.messages, this.user.username)
+        await this.getMessages(this.gesprek_id, this.user.user_id, this.messages, this.user.username)
         console.log(response)
       } catch (e) {
         console.log(e)
         let nieuweAccestoken = await axios.get(`http://127.0.0.1:8000/refresh?gebruikersnaam=${this.user.username}`)
         this.access_token = nieuweAccestoken.data.access_token
-        await this.deleteMessage(gesprek_id)
+        await this.deleteMessage(bericht_id)
       }
     },
 
@@ -292,7 +318,8 @@ export default {
     await this.getGesprek();
     await this.getMessages(this.gesprek_id, this.user.user_id, this.messages, this.user.username);
     await this.getBot(this.bot_id)
-    this.userid = this.user.user_id
+      this.scrollToNewestMessage()
+      this.userid = this.user.user_id
     this.username = this.user.username
     }
     catch(e){
